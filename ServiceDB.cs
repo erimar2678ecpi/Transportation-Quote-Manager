@@ -10,6 +10,7 @@ using Project_OOP;
 
 public static class ServiceDB
 {
+    // Ensures the Service table exists before use.
     public static void CreateTable(SqliteConnection conn)
     {
         const string query = @"
@@ -43,6 +44,66 @@ public static class ServiceDB
         command.ExecuteNonQuery();
     }
 
+    // Updates a service row by primary key; returns true when a row was changed.
+    public static bool UpdateService(SqliteConnection conn, int id, string name, string description, decimal rate, ServiceUnitType unitType, bool isActive)
+    {
+        const string query = @"
+            UPDATE Service
+            SET Name = @name,
+                Description = @desc,
+                Rate = @rate,
+                UnitType = @unit,
+                IsActive = @active
+            WHERE ID = @id;";
+
+        using var command = new SqliteCommand(query, conn);
+        command.Parameters.AddWithValue("@name", name);
+        command.Parameters.AddWithValue("@desc", description ?? string.Empty);
+        command.Parameters.AddWithValue("@rate", rate);
+        command.Parameters.AddWithValue("@unit", (int)unitType);
+        command.Parameters.AddWithValue("@active", isActive ? 1 : 0);
+        command.Parameters.AddWithValue("@id", id);
+        return command.ExecuteNonQuery() > 0;
+    }
+
+    // Retrieves a service by primary key; returns null when absent.
+    public static Service? GetServiceById(SqliteConnection conn, int id)
+    {
+        const string query = @"
+            SELECT ID, Name, Description, Rate, UnitType, IsActive
+            FROM Service
+            WHERE ID = @id;";
+
+        using var command = new SqliteCommand(query, conn);
+        command.Parameters.AddWithValue("@id", id);
+        using var reader = command.ExecuteReader();
+        if (!reader.Read())
+        {
+            return null;
+        }
+
+        var name = reader.IsDBNull(1) ? string.Empty : reader.GetString(1);
+        var description = reader.IsDBNull(2) ? string.Empty : reader.GetString(2);
+        var rate = reader.IsDBNull(3) ? 0m : reader.GetDecimal(3);
+        var unitTypeValue = reader.IsDBNull(4) ? 0 : reader.GetInt32(4);
+        var unitType = Enum.IsDefined(typeof(ServiceUnitType), unitTypeValue)
+            ? (ServiceUnitType)unitTypeValue
+            : ServiceUnitType.Flat;
+        var isActive = !reader.IsDBNull(5) && reader.GetInt32(5) == 1;
+
+        return new Service(id.ToString(), name, description, rate, unitType, isActive);
+    }
+
+    // Deletes a service by primary key; returns true when a row was removed.
+    public static bool DeleteService(SqliteConnection conn, int id)
+    {
+        const string query = @"DELETE FROM Service WHERE ID = @id;";
+        using var command = new SqliteCommand(query, conn);
+        command.Parameters.AddWithValue("@id", id);
+        return command.ExecuteNonQuery() > 0;
+    }
+
+    // Fetches all services ordered by their primary key.
     public static List<Service> GetAllServices(SqliteConnection conn)
     {
         const string query = @"
